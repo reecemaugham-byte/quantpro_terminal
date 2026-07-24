@@ -212,9 +212,8 @@ SECTOR_MAP = {
     "TTWO": "Communication Services",
 }
 
-# VIX cache to avoid hammering Yahoo
-_VIX_CACHE = {"value": 0.0, "timestamp": 0.0, "safe": True, "reason": ""}
-_VIX_CACHE_TTL = 300  # 5 minutes
+# VIX cache is now per-engine instance (moved to __init__)
+
 
 # Reconnection reset
 MAX_CONSECUTIVE_SCAN_FAILURES = 10
@@ -354,6 +353,8 @@ class TradingEngine:
         self._universe_cache_time = 0
         self._universe_cache_ttl = 1800  # 30 minutes
         self._daily_start_equity = 0.0
+        self._vix_cache = {"value": 0.0, "timestamp": 0.0, "safe": True, "reason": ""}
+        self._vix_cache_ttl = 300  # 5 minutes
         self._trailing_stops = {}
         self._alpaca_api_ref = None
         self.daily_reset_date = None
@@ -646,7 +647,41 @@ class TradingEngine:
         try:
             if not self.connected or not self.api:
                 return {"is_open": False, "current_time_et": "N/A", "day_name": "N/A"}
-            clock = self.api.get_clock()
+            
+            try:
+                clock = self.api.get_clock()
+            except Exception as e:
+                # Connection might be stale — try reconnecting once
+                self._log_error("market_clock", f"get_clock failed: {e}")
+                try:
+                    if self._alpaca_api_ref:
+                        self.api = self._alpaca_api_ref
+                        clock = self.api.get_clock()
+                    else:
+                        raise e
+                except Exception:
+                    clock = None
+            
+            if clock is None:
+                # Fallback: use time-based check
+                try:
+                    from zoneinfo import ZoneInfo
+                    eastern = ZoneInfo("US/Eastern")
+                    now_et = datetime.now(eastern)
+                    market_open_time = dt_time(9, 30)
+                    market_close_time = dt_time(16, 0)
+                    is_weekday = now_et.weekday() < 5
+                    is_holiday = now_et.strftime("%Y-%m-%d") in US_MARKET_HOLIDAYS
+                    is_trading_hours = market_open_time <= now_et.time() <= market_close_time
+                    is_open = is_weekday and is_trading_hours and not is_holiday
+                    return {
+                        "is_open": is_open,
+                        "current_time_et": now_et.strftime("%I:%M %p"),
+                        "day_name": now_et.strftime("%A"),
+                    }
+                except Exception:
+                    return {"is_open": False, "current_time_et": "N/A", "day_name": "N/A"}
+            
             is_open = getattr(clock, 'is_open', False)
             timestamp = getattr(clock, 'timestamp', datetime.utcnow())
             next_open = getattr(clock, 'next_open', None)
@@ -676,34 +711,32 @@ class TradingEngine:
 
     def check_vix(self) -> Dict:
         """Check VIX level with 5-minute caching to avoid hammering Yahoo."""
-        global _VIX_CACHE
         
         # Return cached result if fresh
         now = time.time()
-        if (now - _VIX_CACHE["timestamp"]) < _VIX_CACHE_TTL and _VIX_CACHE["timestamp"] > 0:
+        if (now - self._vix_cache["timestamp"]) < self._vix_cache_ttl and self._vix_cache["timestamp"] > 0:
             return {
-                "safe_to_trade": _VIX_CACHE["safe"],
-                "vix_value": _VIX_CACHE["value"],
-                "reason": _VIX_CACHE["reason"],
+                "safe_to_trade": self._vix_cache["safe"],
+                "vix_value": self._vix_cache["value"],
+                "reason": self._vix_cache["reason"],
             }
         
         try:
             if not YF_AVAILABLE:
                 result = {"safe_to_trade": True, "vix_value": 0, "reason": "yfinance not available — VIX filter disabled"}
-                _VIX_CACHE = {"value": 0, "timestamp": now, "safe": True, "reason": result["reason"]}
+                self._vix_cache = {"value": 0, "timestamp": now, "safe": True, "reason": result["reason"]}
                 return result
             
             vix_data = yf.Ticker("^VIX").history(period="5d")
             if vix_data.empty:
-                # Use last known VIX if available, otherwise allow trading
-                if _VIX_CACHE["timestamp"] > 0:
+                if self._vix_cache["timestamp"] > 0:
                     return {
-                        "safe_to_trade": _VIX_CACHE["safe"],
-                        "vix_value": _VIX_CACHE["value"],
-                        "reason": f"VIX data unavailable, using last known: {_VIX_CACHE['value']:.1f}",
+                        "safe_to_trade": self._vix_cache["safe"],
+                        "vix_value": self._vix_cache["value"],
+                        "reason": f"VIX data unavailable, using last known: {self._vix_cache['value']:.1f}",
                     }
                 result = {"safe_to_trade": True, "vix_value": 0, "reason": "VIX data unavailable — filter disabled"}
-                _VIX_CACHE = {"value": 0, "timestamp": now, "safe": True, "reason": result["reason"]}
+                self._vix_cache = {"value": 0, "timestamp": now, "safe": True, "reason": result["reason"]}
                 return result
             
             vix_value = float(vix_data['Close'].iloc[-1])
@@ -722,7 +755,7 @@ class TradingEngine:
                     "reason": f"VIX is {vix_value:.1f} — safe to trade.",
                 }
             
-            _VIX_CACHE = {
+            self._vix_cache = {
                 "value": vix_value,
                 "timestamp": now,
                 "safe": result["safe_to_trade"],
@@ -731,16 +764,16 @@ class TradingEngine:
             return result
             
         except Exception as e:
-            # On error, use last cached value or allow trading
-            if _VIX_CACHE["timestamp"] > 0:
+            if self._vix_cache["timestamp"] > 0:
                 return {
-                    "safe_to_trade": _VIX_CACHE["safe"],
-                    "vix_value": _VIX_CACHE["value"],
-                    "reason": f"VIX check error, using cache: {_VIX_CACHE['value']:.1f}",
+                    "safe_to_trade": self._vix_cache["safe"],
+                    "vix_value": self._vix_cache["value"],
+                    "reason": f"VIX check error, using cache: {self._vix_cache['value']:.1f}",
                 }
             result = {"safe_to_trade": True, "vix_value": 0, "reason": f"VIX check error — filter disabled: {e}"}
-            _VIX_CACHE = {"value": 0, "timestamp": now, "safe": True, "reason": result["reason"]}
+            self._vix_cache = {"value": 0, "timestamp": now, "safe": True, "reason": result["reason"]}
             return result
+
 
     # ==========================================
     # Account & Position Info
@@ -3689,8 +3722,9 @@ class TradingEngine:
             print(f"[UNIVERSE] Total stocks with data: {len(symbol_data)}")
 
             if not symbol_data:
-                print("[UNIVERSE] No data from any source, using current watchlist")
-                self._log_error("universe_scan", "No data from snapshots or bars")
+                print("[UNIVERSE] ⚠️ FAILED to get any price data from Alpaca! Falling back to watchlist.")
+                self._log_error("universe_scan_failed", f"Got 0 stocks from {len(tradable)} tradable symbols. API may be rate-limited or down.")
+                self.status_message = f"⚠️ Universe scan failed — using watchlist ({len(self.settings.get('watchlist', []))} stocks). Try reconnecting to Alpaca."
                 return self.settings.get("watchlist", [])
 
             # Step 4: Sort by volume and build bucket-aware list
