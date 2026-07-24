@@ -1004,6 +1004,11 @@ db_banner.close()
 # TAB 1: 📊 DASHBOARD (Compact Layout)
 # ==========================================
 with tab1:
+    # Refresh engine data from disk (synced with worker)
+    try:
+        engine._load_trade_log()
+    except Exception:
+        pass
     st.header("Portfolio Dashboard")
 
     # --- Account Metrics (4 columns) ---
@@ -2144,7 +2149,13 @@ with tab2:
 # ==========================================
 with tab3:
     engine = st.session_state.trading_engine
+    # Refresh engine data from disk (synced with worker)
+    try:
+        engine._load_trade_log()
+    except Exception:
+        pass
     is_locked = (user_tier == "starter")
+
 
     auto_sub1, auto_sub2, auto_sub3 = st.tabs(["🎮 Control", "📊 Signals & Positions", "⚙️ Settings"])
 
@@ -2358,7 +2369,27 @@ with tab3:
             st.write(f"**Connection:** {conn_icon}")
             st.write(f"**Bot:** {bot_icon}")
             st.write(f"**Last Status:** {worker_status_msg}")
-            st.write(f"**Cycles Completed:** {engine.cycle_count}")
+            # Show worker's cycle count from bot_status if available
+            worker_cycles = 0
+            if worker_status_msg and "Cycle #" in worker_status_msg:
+                try:
+                    import re
+                    cycle_match = re.search(r'Cycle #(\d+)', worker_status_msg)
+                    if cycle_match:
+                        worker_cycles = int(cycle_match.group(1))
+                except Exception:
+                    pass
+            # Show worker's cycle count from bot_status
+            worker_cycles = 0
+            if worker_status_msg and "Cycle #" in worker_status_msg:
+                try:
+                    import re
+                    cycle_match = re.search(r'Cycle #(\d+)', worker_status_msg)
+                    if cycle_match:
+                        worker_cycles = int(cycle_match.group(1))
+                except Exception:
+                    pass
+            st.write(f"**Cycles Completed:** {worker_cycles} (worker) / {engine.cycle_count} (this session)")
             st.write(f"**Daily P&L:** ${engine.daily_pnl:+,.2f}")
             if engine.last_successful_cycle:
                 st.write(f"**Last Successful Cycle:** {engine.last_successful_cycle[:19]}")
@@ -2977,9 +3008,7 @@ with tab3:
         if "Auto" in wl_mode:
             col_auto1, col_auto2 = st.columns(2)
             with col_auto1:
-                # Allow up to 500 stocks regardless of tier
                 max_wl = 500
-                current_count = len(engine.settings.get("watchlist", []))
                 top_n = st.slider("How many stocks to scan", 20, max_wl, 
                                   min(engine.settings.get("watchlist_auto_count", 100), max_wl),
                                   key="watchlist_count_slider")
@@ -2989,7 +3018,16 @@ with tab3:
                 max_p = st.number_input("Max Price $", value=500.0, step=10.0, key="watchlist_max_price")
 
             if not engine.connected:
-                st.warning("🔌 Connect to Alpaca in the Auto Trade tab first, then come back here to build your watchlist.")
+                st.error("🔌 **Not connected to Alpaca.** Click 'Connect' in the Auto Trade tab first, then come back here.")
+                st.caption("Step 1: Go to Auto Trade → Control → Click 'Connect'")
+                st.caption("Step 2: Come back here and click 'Build / Rebuild Watchlist'")
+                
+                # Try to auto-connect using stored API keys
+                db_auto = SessionLocal()
+                auto_user = db_auto.query(User).filter(User.username == st.session_state.username).first()
+                if auto_user and auto_user.alpaca_api_key:
+                    st.info("💡 Found stored API keys. Click 'Connect' in the Auto Trade tab to reconnect.")
+                db_auto.close()
             else:
                 # Build button
                 build_col1, build_col2 = st.columns(2)
@@ -3043,7 +3081,7 @@ with tab3:
             if new_watchlist != watchlist_str:
                 parsed = [t.strip().upper() for t in new_watchlist.split(",") if t.strip()]
                 tier_limits = get_tier_limits(st.session_state.username) if TIERS_AVAILABLE else TIER_FEATURES.get("starter", {})
-                max_wl = tier_limits.get("max_watchlist", 50)
+                max_wl = tier_limits.get("max_watchlist", 500)
                 if len(parsed) > max_wl:
                     st.error(f"❌ Maximum {max_wl} stocks allowed. You entered {len(parsed)}.")
                 else:
