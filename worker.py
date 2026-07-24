@@ -48,13 +48,18 @@ def connect_engine(engine, user):
 
 def stop_engine(username):
     if username in active_engines:
-        logger.info(f"Stopping engine for {username}...")
+        logger.info(f"🛑 Stopping engine for {username}...")
         try:
-            active_engines[username].stop()
+            engine = active_engines[username]
+            engine.running = False
+            engine._stop_event.set()
+            if engine._thread and engine._thread.is_alive():
+                engine._thread.join(timeout=5)
         except Exception as e:
             logger.warning(f"Error stopping engine for {username}: {e}")
         finally:
             del active_engines[username]
+
 
 def load_settings_from_db_for_worker(engine, username):
     try:
@@ -97,12 +102,11 @@ def heartbeat_loop():
                 active_users = db.query(User).filter(User.bot_running == True).all()
                 now = datetime.datetime.now()
                 for user in active_users:
-                    username = user.username
                     try:
                         db.execute(text("UPDATE users SET last_login=:now WHERE username=:uname"),
-                                   {"now": now, "uname": username})
-                    except Exception:
-                        pass
+                                   {"now": now, "uname": user.username})  # <-- FIX: user.username
+                    except Exception as e:
+                        logger.warning(f"Heartbeat update failed for {user.username}: {e}")
                 try:
                     db.commit()
                 except Exception:
@@ -180,9 +184,9 @@ def run_worker():
                             continue
                         logger.info(f"✅ Connected {username}")
                     
-                    # Load settings
+                    # Load settings from DB (this also saves to file)
                     load_settings_from_db_for_worker(engine, username)
-                    engine.load_settings()
+                    # DO NOT call engine.load_settings() here — it would overwrite DB settings with stale file data
                     engine.invalidate_all_caches()
                     
                     # Run cycle
@@ -234,6 +238,16 @@ def run_worker():
                 except Exception as e:
                     logger.error(f"❌ Cycle error for {username}: {e}")
                     traceback.print_exc()
+                    # Update status so UI shows the error
+                    try:
+                        db_err = SessionLocal()
+                        from sqlalchemy import text
+                        db_err.execute(text("UPDATE users SET bot_status=:status WHERE username=:uname"),
+                                   {"status": f"❌ Error: {str(e)[:200]}", "uname": username})
+                        db_err.commit()
+                        db_err.close()
+                    except Exception:
+                        pass
                     try:
                         db.rollback()
                     except Exception:
