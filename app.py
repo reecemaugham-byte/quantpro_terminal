@@ -1566,24 +1566,142 @@ with tab2:
     # --- SUB-TAB 1: GLOBAL SCANNER ---
     with scan_sub1:
         st.markdown("### 📊 Global Scanner")
-        save_file = "my_custom_scan_list.txt"
+
+        # === DIAGNOSTIC TEST ===
+        with st.expander("🔧 Connection & Data Diagnostic"):
+            st.caption("Test if your Alpaca connection can fetch stocks and prices.")
+            if st.button("🔍 Run Full Diagnostic", use_container_width=True, key="run_diagnostic"):
+                if not engine.connected:
+                    st.error("Not connected to Alpaca. Click 'Connect' in Auto Trade tab first.")
+                else:
+                    diag_results = []
+                    
+                    # Test 1: List assets
+                    st.info("Test 1/5: Listing assets from Alpaca...")
+                    try:
+                        assets = engine.api.list_assets(status="active")
+                        exchanges = ["NASDAQ", "NYSE", "ARCA", "AMEX", "BATS"]
+                        tradable = [a for a in assets if getattr(a, 'tradable', False) and getattr(a, 'exchange', '') in exchanges and len(getattr(a, 'symbol', '')) <= 5]
+                        diag_results.append(("✅ List Assets", f"Found {len(tradable)} tradable US stocks", "success"))
+                    except Exception as e:
+                        diag_results.append(("❌ List Assets", f"Error: {str(e)[:200]}", "error"))
+                        tradable = []
+                    
+                    # Test 2: Get snapshots
+                    st.info("Test 2/5: Testing snapshot API...")
+                    snap_count = 0
+                    if tradable:
+                        test_symbols = [a.symbol for a in tradable[:5]] if hasattr(tradable[0], 'symbol') else tradable[:5]
+                        try:
+                            # Try different API methods
+                            snapshots = None
+                            try:
+                                snapshots = engine.api.get_snapshots(test_symbols)
+                                if snapshots:
+                                    snap_count = len(snapshots) if isinstance(snapshots, dict) else 0
+                            except AttributeError:
+                                try:
+                                    snapshots = engine.api.get_snapshot(test_symbols)
+                                    if snapshots:
+                                        snap_count = 1
+                                except AttributeError:
+                                    pass
+                            except Exception as e:
+                                st.warning(f"Snapshot API error: {str(e)[:200]}")
+                            
+                            if snap_count > 0:
+                                diag_results.append(("✅ Snapshots API", f"Got data for {snap_count} symbols", "success"))
+                            else:
+                                diag_results.append(("⚠️ Snapshots API", "Returned no data. Will use bars fallback.", "warning"))
+                        except Exception as e:
+                            diag_results.append(("❌ Snapshots API", f"Error: {str(e)[:200]}", "error"))
+                    else:
+                        diag_results.append(("⏭️ Snapshots API", "Skipped (no assets)", "warning"))
+                    
+                    # Test 3: Get bars
+                    st.info("Test 3/5: Testing bars API...")
+                    bars_count = 0
+                    if tradable:
+                        test_syms = [a.symbol for a in tradable[:5]] if hasattr(tradable[0], 'symbol') else tradable[:5]
+                        try:
+                            from alpaca_trade_api.rest import TimeFrame
+                            from datetime import datetime, timedelta
+                            end_dt = datetime.utcnow()
+                            start_dt = end_dt - timedelta(days=5)
+                            bars_df = engine.api.get_bars(
+                                symbol_or_symbols=test_syms,
+                                timeframe=TimeFrame.Day,
+                                start=start_dt.strftime("%Y-%m-%d"),
+                                end=end_dt.strftime("%Y-%m-%d"),
+                                adjustment='raw'
+                            )
+                            if bars_df is not None and not bars_df.empty:
+                                bars_count = len(bars_df)
+                                diag_results.append(("✅ Bars API", f"Got {bars_count} bar rows for {len(test_syms)} symbols", "success"))
+                            else:
+                                diag_results.append(("⚠️ Bars API", "Returned empty DataFrame", "warning"))
+                        except Exception as e:
+                            diag_results.append(("❌ Bars API", f"Error: {str(e)[:200]}", "error"))
+                    else:
+                        diag_results.append(("⏭️ Bars API", "Skipped (no assets)", "warning"))
+                    
+                    # Test 4: yfinance
+                    st.info("Test 4/5: Testing yfinance...")
+                    try:
+                        import yfinance as yf
+                        test_ticker = yf.Ticker("AAPL")
+                        test_hist = test_ticker.history(period="5d")
+                        if not test_hist.empty:
+                            test_price = test_hist['Close'].iloc[-1]
+                            diag_results.append(("✅ yfinance", f"AAPL price: ${test_price:.2f}", "success"))
+                        else:
+                            diag_results.append(("⚠️ yfinance", "Returned empty DataFrame", "warning"))
+                    except Exception as e:
+                        diag_results.append(("❌ yfinance", f"Error: {str(e)[:200]}", "error"))
+                    
+                    # Test 5: Current watchlist
+                    st.info("Test 5/5: Checking current watchlist...")
+                    current_wl = engine.settings.get("watchlist", [])
+                    diag_results.append(("📋 Current Watchlist", f"{len(current_wl)} stocks", "info"))
+                    
+                    # Display results
+                    st.markdown("---")
+                    st.markdown("### Diagnostic Results")
+                    for name, result, level in diag_results:
+                        if level == "success":
+                            st.success(f"{name}: {result}")
+                        elif level == "warning":
+                            st.warning(f"{name}: {result}")
+                        elif level == "error":
+                            st.error(f"{name}: {result}")
+                        else:
+                            st.info(f"{name}: {result}")
+                    
+                    # Summary
+                    errors = sum(1 for _, _, l in diag_results if l == "error")
+                    if errors > 0:
+                        st.error(f"❌ {errors} test(s) failed. The Alpaca API may need reconnecting, or your API keys may be invalid.")
+                    else:
+                        st.success("✅ All tests passed! If watchlist build still fails, try reconnecting to Alpaca.")
+        # === END DIAGNOSTIC ===
 
         def load_custom_list():
-            if os.path.exists(save_file):
-                try:
-                    with open(save_file, "r") as f:
-                        return f.read()
-                except:
-                    return ""
-            return ""
+            """Load custom scan list from user's settings in the database."""
+            try:
+                return engine.settings.get("custom_scan_list", "")
+            except Exception:
+                return ""
 
         def save_custom_list(text_data):
+            """Save custom scan list to user's settings in the database."""
             try:
-                with open(save_file, "w") as f:
-                    f.write(text_data)
+                engine.settings["custom_scan_list"] = text_data
+                engine.save_settings()
+                save_settings_to_db(st.session_state.username, engine.settings)
                 return True
-            except:
+            except Exception:
                 return False
+
 
         col1, col2 = st.columns([3, 1])
         with col1:
@@ -3059,11 +3177,19 @@ with tab3:
                             pen_count = len([s for s in wl if s in GROWTH_STOCKS])
                             gro_count = new_count - div_count - pen_count
                             st.caption(f"🟢 {div_count} Dividend | 🔵 {gro_count} Growth | 🔴 {pen_count} Penny")
+                            
+                            # Show engine status message for debugging
+                            if engine.status_message:
+                                st.caption(f"Engine status: {engine.status_message[:200]}")
+                            
                             st.rerun()
                         else:
                             st.error(f"❌ Failed to build watchlist. The Alpaca API may be busy — try again in 2-3 minutes.")
                             st.caption(f"Current watchlist: {old_count} stocks (unchanged)")
-                            st.info("💡 **Troubleshooting:** Make sure you're connected to Alpaca (click Connect in Auto Trade tab). Check your API keys in Settings.")
+                            st.info("💡 **Troubleshooting:**")
+                            st.info("1. Make sure you're connected to Alpaca (click Connect in Auto Trade tab)")
+                            st.info("2. Try clicking the 🔧 **Diagnostic** button above to test your connection")
+                            st.info("3. Check that your API keys are correct in Settings")
 
                 with build_col2:
                     if st.button("🔄 Refresh from Current Settings", use_container_width=True, key="refresh_watchlist_btn"):
