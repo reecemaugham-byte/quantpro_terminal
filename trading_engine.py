@@ -1147,28 +1147,45 @@ class TradingEngine:
 
         # Decide which stocks to scan
         use_universe = self.settings.get("scan_full_universe", True)
+        scan_slice = []
+        scan_source = "none"
+
         if use_universe and self.connected and self.api:
-            # Use cached universe if fresh (< 30 min old)
+            # Check universe cache first (30-min TTL)
             now = time.time()
             if (self._universe_cache and 
                 (now - self._universe_cache_time) < self._universe_cache_ttl):
                 scan_slice = self._universe_cache
-                self.status_message = f"Scanning {len(scan_slice)} stocks (cached universe)"
-                print(f"[SCAN] Using cached universe: {len(scan_slice)} stocks")
+                scan_source = "cached_universe"
+                cache_age_min = int((now - self._universe_cache_time) / 60)
+                self.status_message = f"Scanning {len(scan_slice)} stocks (cached universe, {cache_age_min}min old)"
+                print(f"[SCAN] Using cached universe: {len(scan_slice)} stocks (age: {cache_age_min}min)")
             else:
+                # Fetch fresh universe from Alpaca
                 universe_size = self.settings.get("universe_scan_count", 300)
                 print(f"[SCAN] Building universe scan for top {universe_size} stocks...")
-                scan_slice = self.scan_market_universe(top_n=universe_size)
-                if scan_slice:
-                    self._universe_cache = scan_slice
+                fresh_universe = self.scan_market_universe(top_n=universe_size)
+                
+                if fresh_universe:
+                    # Universe scan succeeded — cache it
+                    scan_slice = fresh_universe
+                    self._universe_cache = fresh_universe
                     self._universe_cache_time = now
+                    scan_source = "fresh_universe"
                     self.status_message = f"Scanning {len(scan_slice)} stocks from universe"
                     print(f"[SCAN] Universe scan complete: {len(scan_slice)} stocks")
                 else:
+                    # Universe scan FAILED — fall back to watchlist with clear warning
+                    if not watchlist:
+                        self.status_message = "⚠️ Universe scan failed AND no watchlist configured"
+                        print(f"[SCAN] ⚠️ Universe scan failed AND no watchlist configured — nothing to scan")
+                        return
                     scan_slice = list(watchlist)
-                    self.status_message = f"Universe scan failed, using watchlist ({len(watchlist)} stocks)"
-                    print(f"[SCAN] Universe scan failed, falling back to watchlist")
+                    scan_source = "watchlist_fallback"
+                    self.status_message = f"⚠️ Universe scan failed, using watchlist ({len(watchlist)} stocks)"
+                    print(f"[SCAN] ⚠️ Universe scan failed, falling back to watchlist ({len(watchlist)} stocks)")
         else:
+            # Watchlist mode (user chose watchlist, or not connected)
             if not watchlist:
                 self.status_message = "No watchlist configured"
                 return
@@ -1176,12 +1193,21 @@ class TradingEngine:
             if self.running and len(watchlist) > max_per_cycle:
                 cycle_offset = (self.cycle_count * max_per_cycle) % len(watchlist)
                 scan_slice = watchlist[cycle_offset:cycle_offset + max_per_cycle]
+                scan_source = "watchlist_staggered"
                 self.status_message = f"Scanning {len(scan_slice)}/{len(watchlist)} stocks (cycle {self.cycle_count})"
             else:
-                scan_slice = watchlist
+                scan_slice = list(watchlist)
+                scan_source = "watchlist"
+
+        if not scan_slice:
+            self.status_message = "No stocks to scan"
+            return
+
+        print(f"[SCAN] Source: {scan_source}, Stocks: {len(scan_slice)}")
 
         # Universe scan results are already set above — do NOT override them here
         # Watchlist staggering only applies when universe scanning is disabled
+
 
         batch_data = self._batch_fetch_data(scan_slice)
 
@@ -3745,10 +3771,13 @@ class TradingEngine:
             print(f"[UNIVERSE] Total stocks with data: {len(symbol_data)}")
 
             if not symbol_data:
-                print("[UNIVERSE] ⚠️ FAILED to get any price data from Alpaca! Falling back to watchlist.")
+                print("[UNIVERSE] ⚠️ FAILED to get any price data from Alpaca! Returning empty — will fall back to watchlist with clear warning.")
                 self._log_error("universe_scan_failed", f"Got 0 stocks from {len(tradable)} tradable symbols. API may be rate-limited or down.")
-                self.status_message = f"⚠️ Universe scan failed — using watchlist ({len(self.settings.get('watchlist', []))} stocks). Try reconnecting to Alpaca."
-                return self.settings.get("watchlist", [])
+                self.status_message = "⚠️ Universe scan failed — API rate limited or disconnected"
+                # Return EMPTY list, NOT the watchlist.
+                # scan_all() will handle the fallback with a clear warning message.
+                return []
+
 
             # Step 4: Sort by volume and build bucket-aware list
             sorted_symbols = sorted(
@@ -4462,18 +4491,21 @@ class TradingEngine:
         self._price_cache_time = 0
         self._sector_cache = {}
 
-    def invalidate_all_caches(self):
-        """Invalidate ALL caches including data cache. Call this before each trading cycle."""
-        self._position_cache = {}
-        self._position_cache_time = 0
-        self._price_cache = {}
-        self._price_cache_time = 0
-        self._sector_cache = {}
-        self._data_cache = {}
-        self._data_cache_time = {}
-        # Clear universe cache so Scan Once gets fresh data
-        self._universe_cache = []
-        self._universe_cache_time = 0
+def invalidate_all_caches(self):
+    """Invalidate price/position caches. Does NOT clear universe cache."""
+    self._position_cache = {}
+    self._position_cache_time = 0
+    self._price_cache = {}
+    self._price_cache_time = 0
+    self._sector_cache = {}
+    self._data_cache = {}
+    self._data_cache_time = {}
+
+def invalidate_universe_cache(self):
+    """Force-clear the universe cache (use when user explicitly requests a refresh)."""
+    self._universe_cache = []
+    self._universe_cache_time = 0
+
 
     def auto_add_new_to_watchlist(self, new_symbols: List[str]) -> Dict:
         """Automatically add newly discovered symbols to the watchlist."""
