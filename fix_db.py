@@ -47,6 +47,7 @@ with engine.connect() as conn:
     add_column(conn, "users", "account_locked_until", "TIMESTAMP")
     add_column(conn, "users", "created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
     add_column(conn, "users", "last_login", "TIMESTAMP")
+    add_column(conn, "users", "last_heartbeat", "TIMESTAMP")
 
     # Tier & subscription columns
     add_column(conn, "users", "tier", "VARCHAR DEFAULT 'free'")
@@ -91,14 +92,41 @@ with engine.connect() as conn:
 
     required = [
         "bot_running", "bot_status", "settings_json", "trading_mode",
-        "tier", "subscription_plan", "last_login", "created_at",
+        "tier", "subscription_plan", "last_login", "last_heartbeat", "created_at",
         "terms_accepted", "finnhub_api_key",
     ]
     for col in required:
         status = "✅" if col in columns else "❌"
         print(f"  {status} {col}")
 
+    print("\n4. Checking user settings_json...")
+    print("-" * 50)
+    try:
+        import json
+        users_result = conn.execute(text("SELECT username, bot_running, trading_mode, LENGTH(settings_json) as settings_len, settings_json FROM users")).fetchall()
+        for row in users_result:
+            username = row[0]
+            bot_running = row[1]
+            trading_mode = row[2]
+            settings_len = row[3] if row[3] else 0
+            settings_json = row[4]
+            
+            if settings_json:
+                try:
+                    s = json.loads(settings_json)
+                    scan_mode = s.get("scan_full_universe", "NOT SET (will use True)")
+                    watchlist_count = len(s.get("watchlist", []))
+                    universe_count = s.get("universe_scan_count", "NOT SET (will use 300)")
+                    print(f"  ✅ {username} | bot={bot_running} | mode={trading_mode} | settings={settings_len} chars | scan_full_universe={scan_mode} | watchlist={watchlist_count} stocks | universe_count={universe_count}")
+                except Exception as e:
+                    print(f"  ⚠️  {username} | bot={bot_running} | mode={trading_mode} | settings JSON PARSE ERROR: {e}")
+            else:
+                print(f"  ⚠️  {username} | bot={bot_running} | mode={trading_mode} | NO SETTINGS (will use DEFAULT_SETTINGS: scan_full_universe=True, default watchlist)")
+    except Exception as e:
+        print(f"  ❌ Error checking settings: {e}")
+
 print("\n" + "=" * 50)
 print("Database fix complete! You can close this console.")
 print("Now run: python worker.py")
 print("=" * 50)
+
