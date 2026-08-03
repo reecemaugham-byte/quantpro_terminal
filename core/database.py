@@ -157,6 +157,7 @@ def migrate_db():
             ('login_attempts', 'INTEGER'),
             ('account_locked_until', 'DATETIME'),
             ('last_login', 'DATETIME'),
+            ('last_heartbeat', 'DATETIME'),
             ('tier', 'VARCHAR'),
             ('tier_expires', 'DATETIME'),
             ('subscription_plan', "VARCHAR DEFAULT 'starter'"),
