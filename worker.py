@@ -173,7 +173,7 @@ def heartbeat_loop():
         try:
             with db_session() as db:
                 from sqlalchemy import text
-                active_users = db.query(User).filter(User.bot_running == True).all()
+                active_users = db.query(User).filter(User.bot_running == True, User.is_active == True).all()
                 now = datetime.datetime.now()
                 for user in active_users:
                     try:
@@ -274,10 +274,11 @@ def run_worker():
             for user_data in user_list:
                 username = user_data['username']
                 try:
-                    # Create a proxy object for get_or_create_engine
                     class UserProxy:
+                        """Lightweight proxy object for passing user data to get_or_create_engine."""
                         pass
                     proxy = UserProxy()
+                    
                     proxy.username = user_data['username']
                     proxy.alpaca_api_key = user_data['alpaca_api_key']
                     proxy.alpaca_secret_key = user_data['alpaca_secret_key']
