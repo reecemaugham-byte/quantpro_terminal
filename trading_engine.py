@@ -41,15 +41,75 @@ try:
 except Exception:
     ADVANCED_SIGNALS_AVAILABLE = False
 try:
-    from utils import US_QUICK_TURNOVER, DIVIDEND_STOCKS, GROWTH_STOCKS, US_MARKET_HOLIDAYS, BUCKET_ICONS, SECTOR_MAP
+    from utils import (US_QUICK_TURNOVER, US_LONG_TERM, DIVIDEND_STOCKS,
+                       GROWTH_STOCKS, US_MARKET_HOLIDAYS, BUCKET_ICONS, SECTOR_MAP)
 except Exception:
-    # Fallback — constants are defined below
-    US_QUICK_TURNOVER = None
-    DIVIDEND_STOCKS = None
-    GROWTH_STOCKS = None
-    US_MARKET_HOLIDAYS = None
-    BUCKET_ICONS = None
-    SECTOR_MAP = None
+    # Fallback defaults if utils cannot be imported
+    US_QUICK_TURNOVER = [
+        "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META",
+        "AMD", "INTC", "NFLX", "PYPL", "ADBE", "CRM", "ORCL", "IBM",
+        "QCOM", "TXN", "AVGO", "INTU", "SHOP", "SNOW", "PLTR", "COIN",
+        "SQ", "ROKU", "ZM", "CRWD", "DDOG", "NET", "MDB", "OKTA",
+        "ZS", "PANW", "RIVN", "LCID", "NIO", "UBER", "ABNB", "SOFI",
+        "HOOD", "UPST", "AFRM", "OPEN", "F", "GM", "DIS", "BA", "CAT",
+        "GE", "LMT", "NOC", "RTX", "DE", "UNP", "CSX",
+    ]
+    US_LONG_TERM = [
+        "JNJ", "PG", "KO", "PEP", "V", "MA", "UNH", "HD", "COST",
+        "ABBV", "LLY", "MRK", "TMO", "AVGO", "TXN", "AAPL", "MSFT",
+        "BRK.B", "VZ", "T", "XOM", "CVX", "SPY", "QQQ",
+        "WM", "LIN", "RTX", "HON", "UPS", "CAT", "DE",
+        "LOW", "BLK", "CME", "ICE", "MMC", "AON",
+    ]
+    DIVIDEND_STOCKS = [
+        "AAPL", "MSFT", "JNJ", "PG", "KO", "PEP", "VZ", "T", "XOM", "CVX",
+        "ABBV", "LLY", "MRK", "PFE", "MO", "HD", "WMT", "COST", "TGT", "V",
+        "UNH", "ABT", "TMO", "AVGO", "TXN", "QCOM", "INTC", "CSCO", "IBM", "ORCL",
+        "LIN", "DHR", "RTX", "HON", "UPS", "BA", "CAT", "DE", "MMM", "SPGI",
+        "MMC", "AON", "CME", "ICE", "BLK", "SCHW", "PGR", "ALL", "BRK.B", "GLW",
+        "O", "OHI", "STAG", "VICI", "MPW", "AGNC", "NLY", "LMT", "NOC", "GD",
+        "RTX", "EMR", "ETN", "GIS", "CL", "KMB", "CLX", "EL", "APD", "ECL",
+        "FIS", "GPN", "MA", "COF", "CB", "CINF", "MET", "AFL", "PRU", "TRV",
+        "AIG", "ALL", "BRO", "CF", "MOS", "NUE", "STLD", "FCX", "F", "GM",
+        "COP", "SLB", "EOG", "OXY", "MPC", "VLO", "PSX", "KMI", "WMB", "ET",
+        "OKE", "D", "DUK", "SO", "NEE", "AEP", "EXC", "XEL", "SRE", "AWK",
+        "WEC", "DTE", "PEG", "ESRX", "CI", "HUM", "CNC", "ELV", "WBA", "RAD",
+    ]
+    GROWTH_STOCKS = [
+        "AMZN", "GOOGL", "GOOG", "META", "NVDA", "TSLA", "NFLX", "AMD", "PYPL",
+        "ADBE", "CRM", "SHOP", "SNOW", "PLTR", "COIN", "SQ", "ROKU", "ZM", "CRWD",
+        "DDOG", "NET", "MDB", "OKTA", "ZS", "PANW", "RIVN", "LCID", "NIO", "RBLX",
+        "U", "PATH", "AI", "SOFI", "HOOD", "AFRM", "UPST", "OPEN", "EXAS", "VEEV",
+        "WDAY", "TEAM", "DOCU", "ZI", "BILL", "HUBS", "TWLO", "ESTC", "FSLR",
+        "ENPH", "SEDG", "RUN", "BE", "PLUG", "BLNK", "CHPT", "NKLA", "QS", "RMO",
+        "UBER", "LYFT", "ABNB", "PINS", "SNAP", "SPOT", "MSTR", "SE", "MELI",
+        "WIX", "ETSY", "INTU", "MNST",
+    ]
+    BUCKET_ICONS = {
+        "dividend": "🟢",
+        "growth": "🔵",
+        "penny": "🔴",
+        "withdrawal": "🟡",
+        "long_term": "🟢",
+    }
+    SECTOR_MAP = {
+        "AAPL": "Technology", "MSFT": "Technology", "GOOGL": "Technology",
+        "AMZN": "Consumer Discretionary", "TSLA": "Consumer Discretionary",
+        "NVDA": "Technology", "META": "Technology", "JPM": "Financials",
+        "JNJ": "Healthcare", "V": "Financials", "PG": "Consumer Staples",
+        "KO": "Consumer Staples", "HD": "Consumer Discretionary",
+        "UNH": "Healthcare", "ABBV": "Healthcare", "XOM": "Energy",
+        "BA": "Industrials", "DIS": "Communication Services",
+        "NFLX": "Communication Services", "PFE": "Healthcare",
+    }
+    US_MARKET_HOLIDAYS = {
+        "2025-01-01", "2025-01-20", "2025-02-17", "2025-04-18",
+        "2025-05-26", "2025-06-19", "2025-07-04", "2025-09-01",
+        "2025-11-27", "2025-12-25",
+        "2026-01-01", "2026-01-19", "2026-02-16", "2026-04-03",
+        "2026-05-25", "2026-06-19", "2026-07-03", "2026-09-07",
+        "2026-11-26", "2026-12-25",
+    }
 
 try:
     from core.metrics import (
@@ -120,6 +180,8 @@ except Exception:
 # Fallback defaults if utils import fails
 if US_QUICK_TURNOVER is None:
     US_QUICK_TURNOVER = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META"]
+if US_LONG_TERM is None:
+    US_LONG_TERM = ["JNJ", "PG", "KO", "PEP", "V", "MA", "UNH", "HD", "COST"]
 if DIVIDEND_STOCKS is None:
     DIVIDEND_STOCKS = ["JNJ", "PG", "KO", "PEP", "VZ", "T", "XOM", "CVX", "ABBV", "MRK"]
 if GROWTH_STOCKS is None:
