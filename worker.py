@@ -177,12 +177,12 @@ def heartbeat_loop():
                 now = datetime.datetime.now()
                 for user in active_users:
                     try:
-                        # Try last_heartbeat column, fall back to last_login
                         try:
                             db.execute(text(
                                 "UPDATE users SET last_heartbeat=:now WHERE username=:uname"
                             ), {"now": now, "uname": user.username})
                         except Exception:
+                            db.rollback()
                             db.execute(text(
                                 "UPDATE users SET last_login=:now WHERE username=:uname"
                             ), {"now": now, "uname": user.username})
@@ -331,12 +331,17 @@ def run_worker():
                     )
                     update_user_status(username, detailed_status)
                     
-                    # Save cycle timestamp to DB only
+                    # Save cycle timestamp to DB only (minimal update to avoid overwriting UI changes)
                     try:
-                        engine.settings["_last_cycle_time"] = datetime.datetime.now().isoformat()
-                        engine.settings["_last_cycle_cycles"] = engine.cycle_count
-                        engine.settings["_last_cycle_signals"] = len(engine.signals_found)
-                        save_settings_to_db(username, engine.settings)
+                        with db_session() as db:
+                            user = db.query(User).filter(User.username == username).first()
+                            if user and hasattr(user, 'settings_json'):
+                                current = json.loads(user.settings_json) if user.settings_json else {}
+                                current["_last_cycle_time"] = datetime.datetime.now().isoformat()
+                                current["_last_cycle_cycles"] = engine.cycle_count
+                                current["_last_cycle_signals"] = len(engine.signals_found)
+                                user.settings_json = json.dumps(current)
+                                db.commit()
                     except Exception:
                         pass
                     
@@ -351,12 +356,13 @@ def run_worker():
                     from sqlalchemy import text
                     usernames_with_engines = list(active_engines.keys())
                     if usernames_with_engines:
-                        stopped = db.execute(text(
-                            "SELECT username FROM users WHERE bot_running = False AND username IN :unames"
-                        ), {"unames": tuple(usernames_with_engines)}).fetchall()
+                        stopped = db.query(User).filter(
+                            User.bot_running == False,
+                            User.username.in_(usernames_with_engines)
+                        ).all()
                         
                         for row in stopped:
-                            stopped_username = row[0]
+                            stopped_username = row.username
                             if stopped_username in active_engines:
                                 logger.info(f"🛑 Stopping engine for {stopped_username} (user requested stop)")
                                 stop_engine(stopped_username)
@@ -381,8 +387,10 @@ def run_worker():
             pass
         
         logger.info(f"💤 Cycle #{cycle} complete. Sleeping {sleep_time}s...")
-        time.sleep(sleep_time)
-
+        for _ in range(sleep_time):
+            if not HEARTBEAT_RUNNING:
+                break
+            time.sleep(1)
 
 if __name__ == "__main__":
     try:
