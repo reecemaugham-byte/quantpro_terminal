@@ -16,8 +16,8 @@ import os
 
 DB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data')
 os.makedirs(DB_DIR, exist_ok=True)
-DB_PATH = os.path.join(DB_DIR, 'quantpro_users.db')
-DATABASE_URL = f"sqlite:///{DB_PATH}"
+sqlite_path = os.path.join(DB_DIR, 'cascadetrade_users.db')
+DATABASE_URL = f"sqlite:///{sqlite_path}"
 
 audit_engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 AuditBase = declarative_base()
