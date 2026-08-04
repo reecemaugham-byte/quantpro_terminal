@@ -6,8 +6,6 @@ import bcrypt
 import os
 import json
 
-from sqlalchemy.sql.functions import user
-
 # --- Database Setup ---
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
@@ -66,6 +64,8 @@ class User(Base):
     login_attempts = Column(Integer, default=0)
     account_locked_until = Column(DateTime, nullable=True)
     last_login = Column(DateTime, nullable=True)
+    last_heartbeat = Column(DateTime, nullable=True)
+
 
     # --- Tier System ---
     tier = Column(String, default="starter")
@@ -180,19 +180,23 @@ def migrate_db():
             except Exception:
                 pass  # Column already exists
 
-        # --- TIER NAME MIGRATION ---
-        # Convert old tier names to new ones
+        # --- TIER NAME MIGRATION (one-time) ---
+        # Only rename if the old names still exist — skip if already migrated
         try:
-            conn.execute(sqlalchemy.text("UPDATE users SET tier = 'free' WHERE tier = 'starter'"))
-            conn.execute(sqlalchemy.text("UPDATE users SET tier = 'live_trading' WHERE tier = 'pro'"))
-            conn.execute(sqlalchemy.text("UPDATE users SET tier = 'pro_trader' WHERE tier = 'fund'"))
-            conn.execute(sqlalchemy.text("UPDATE users SET subscription_plan = 'free' WHERE subscription_plan = 'starter'"))
-            conn.execute(sqlalchemy.text("UPDATE users SET subscription_plan = 'live_trading' WHERE subscription_plan = 'pro'"))
-            conn.execute(sqlalchemy.text("UPDATE users SET subscription_plan = 'pro_trader' WHERE subscription_plan = 'fund'"))
-            conn.commit()
+            result = conn.execute(sqlalchemy.text(
+                "SELECT COUNT(*) FROM users WHERE tier IN ('starter', 'pro', 'fund')"
+            ))
+            old_count = result.scalar()
+            if old_count and int(old_count) > 0:
+                conn.execute(sqlalchemy.text("UPDATE users SET tier = 'free' WHERE tier = 'starter'"))
+                conn.execute(sqlalchemy.text("UPDATE users SET tier = 'live_trading' WHERE tier = 'pro'"))
+                conn.execute(sqlalchemy.text("UPDATE users SET tier = 'pro_trader' WHERE tier = 'fund'"))
+                conn.execute(sqlalchemy.text("UPDATE users SET subscription_plan = 'free' WHERE subscription_plan = 'starter'"))
+                conn.execute(sqlalchemy.text("UPDATE users SET subscription_plan = 'live_trading' WHERE subscription_plan = 'pro'"))
+                conn.execute(sqlalchemy.text("UPDATE users SET subscription_plan = 'pro_trader' WHERE subscription_plan = 'fund'"))
+                conn.commit()
         except Exception:
             pass  # Migration already ran or error
-
 
 # Run migration on import
 migrate_db()
@@ -342,7 +346,7 @@ def update_subscription(db: SessionLocal, username: str, plan: str,
     Called by the Stripe webhook handler when a checkout.session.completed
     or customer.subscription.updated event is received.
     """
-    valid_plans = ["starter", "pro", "fund", "admin"]
+    valid_plans = ["free", "live_trading", "pro_trader", "admin"]
     if plan not in valid_plans:
         return False
 
@@ -361,7 +365,7 @@ def update_subscription(db: SessionLocal, username: str, plan: str,
         user.tier = plan
         user.tier_expires = end_date
     elif status in ("cancelled", "inactive", "past_due"):
-        user.tier = "starter"
+        user.tier = "free"
         user.tier_expires = None
 
     db.commit()
@@ -369,7 +373,7 @@ def update_subscription(db: SessionLocal, username: str, plan: str,
 
 
 def deactivate_subscription(db: SessionLocal, username: str) -> bool:
-    """Deactivate a user's subscription — downgrades to starter.
+    """Deactivate a user's subscription — downgrades to free.
 
     Called when a Stripe subscription is deleted, expires, or payment fails
     after the grace period.
