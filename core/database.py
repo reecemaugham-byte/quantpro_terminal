@@ -145,6 +145,10 @@ Base.metadata.create_all(bind=engine)
 def migrate_db():
     """Add new columns to existing tables if they don't exist."""
     with engine.connect() as conn:
+        # Detect database type for column type compatibility
+        is_postgres = 'postgresql' in str(engine.url).lower() or 'postgres' in str(engine.url).lower()
+        ts_type = 'TIMESTAMP' if is_postgres else 'DATETIME'
+
         new_columns = [
             ('dividend_pct', 'FLOAT'),
             ('growth_pct', 'FLOAT'),
@@ -153,18 +157,18 @@ def migrate_db():
             ('penny_price_threshold', 'FLOAT'),
             ('profit_skim_pct', 'FLOAT'),
             ('terms_accepted', 'BOOLEAN'),
-            ('terms_accepted_date', 'DATETIME'),
+            ('terms_accepted_date', ts_type),
             ('login_attempts', 'INTEGER'),
-            ('account_locked_until', 'DATETIME'),
-            ('last_login', 'DATETIME'),
-            ('last_heartbeat', 'DATETIME'),
+            ('account_locked_until', ts_type),
+            ('last_login', ts_type),
+            ('last_heartbeat', ts_type),
             ('tier', 'VARCHAR'),
-            ('tier_expires', 'DATETIME'),
+            ('tier_expires', ts_type),
             ('subscription_plan', "VARCHAR DEFAULT 'starter'"),
             ('subscription_id', 'VARCHAR'),
             ('subscription_status', "VARCHAR DEFAULT 'inactive'"),
-            ('subscription_start', 'DATETIME'),
-            ('subscription_end', 'DATETIME'),
+            ('subscription_start', ts_type),
+            ('subscription_end', ts_type),
             ('finnhub_api_key', 'VARCHAR'),
             ('trading_mode', "VARCHAR DEFAULT 'paper'"),
             ('bot_running', "BOOLEAN DEFAULT FALSE"),
