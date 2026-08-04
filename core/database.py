@@ -143,12 +143,34 @@ Base.metadata.create_all(bind=engine)
 # MIGRATION: Add new columns if they don't exist
 # ==========================================
 def migrate_db():
-    """Add new columns to existing tables if they don't exist."""
-    with engine.connect() as conn:
-        # Detect database type for column type compatibility
-        is_postgres = 'postgresql' in str(engine.url).lower() or 'postgres' in str(engine.url).lower()
-        ts_type = 'TIMESTAMP' if is_postgres else 'DATETIME'
+    """Add new columns to existing tables if they don't exist.
+    Works with both PostgreSQL and SQLite."""
+    is_postgres = 'postgresql' in str(engine.url).lower() or 'postgres' in str(engine.url).lower()
+    ts_type = 'TIMESTAMP' if is_postgres else 'DATETIME'
 
+    with engine.connect() as conn:
+        # ==========================================
+        # CRITICAL: Ensure last_heartbeat exists FIRST
+        # (The app crashes if this column is missing)
+        # ==========================================
+        try:
+            if is_postgres:
+                conn.execute(sqlalchemy.text(
+                    f"ALTER TABLE users ADD COLUMN IF NOT EXISTS last_heartbeat {ts_type}"
+                ))
+            else:
+                conn.execute(sqlalchemy.text(
+                    f"ALTER TABLE users ADD COLUMN last_heartbeat {ts_type}"
+                ))
+            conn.commit()
+            print("[MIGRATE] Added last_heartbeat column")
+        except Exception:
+            conn.rollback()
+            # Column already exists, that's fine
+
+        # ==========================================
+        # Add all other missing columns
+        # ==========================================
         new_columns = [
             ('dividend_pct', 'FLOAT'),
             ('growth_pct', 'FLOAT'),
@@ -161,7 +183,6 @@ def migrate_db():
             ('login_attempts', 'INTEGER'),
             ('account_locked_until', ts_type),
             ('last_login', ts_type),
-            ('last_heartbeat', ts_type),
             ('tier', 'VARCHAR'),
             ('tier_expires', ts_type),
             ('subscription_plan', "VARCHAR DEFAULT 'starter'"),
@@ -177,15 +198,23 @@ def migrate_db():
         ]
         for col_name, col_type in new_columns:
             try:
-                conn.execute(sqlalchemy.text(
-                    f"ALTER TABLE users ADD COLUMN {col_name} {col_type}"
-                ))
+                if is_postgres:
+                    conn.execute(sqlalchemy.text(
+                        f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col_name} {col_type}"
+                    ))
+                else:
+                    conn.execute(sqlalchemy.text(
+                        f"ALTER TABLE users ADD COLUMN {col_name} {col_type}"
+                    ))
                 conn.commit()
             except Exception:
-                pass  # Column already exists
+                conn.rollback()
+                # Column already exists, that's fine
 
-        # --- TIER NAME MIGRATION (one-time) ---
-        # Only rename if the old names still exist — skip if already migrated
+        # ==========================================
+        # TIER NAME MIGRATION (one-time)
+        # Only rename if old names still exist
+        # ==========================================
         try:
             result = conn.execute(sqlalchemy.text(
                 "SELECT COUNT(*) FROM users WHERE tier IN ('starter', 'pro', 'fund')"
@@ -199,8 +228,11 @@ def migrate_db():
                 conn.execute(sqlalchemy.text("UPDATE users SET subscription_plan = 'live_trading' WHERE subscription_plan = 'pro'"))
                 conn.execute(sqlalchemy.text("UPDATE users SET subscription_plan = 'pro_trader' WHERE subscription_plan = 'fund'"))
                 conn.commit()
+                print("[MIGRATE] Renamed old tier names to new tier names")
         except Exception:
-            pass  # Migration already ran or error
+            conn.rollback()
+            # Migration already ran or error
+
 
 # Run migration on import
 migrate_db()
