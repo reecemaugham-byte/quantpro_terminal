@@ -26,21 +26,18 @@ def _generate_key() -> bytes:
 
 
 def _load_or_create_key() -> bytes:
-    """Load the encryption key from file, or create one if it doesn't exist.
-    
-    The key is stored in data/.encryption_key which should be:
-    - Added to .gitignore (never committed to version control)
-    - Kept secure on the server
-    - Backed up securely
-    
-    If the key file is lost, all previously encrypted data becomes unreadable.
-    """
+    """Load the encryption key from file, or create one if it doesn't exist."""
     if not FERNET_AVAILABLE:
         raise ImportError("cryptography package not installed. Run: pip install cryptography")
 
     if KEY_FILE.exists():
         with open(KEY_FILE, "rb") as f:
             key = f.read().strip()
+        # Ensure restrictive permissions on existing key
+        try:
+            os.chmod(KEY_FILE, 0o600)
+        except Exception:
+            pass
         # Validate the key
         try:
             Fernet(key)
@@ -50,13 +47,16 @@ def _load_or_create_key() -> bytes:
             key = _generate_key()
             with open(KEY_FILE, "wb") as f:
                 f.write(key)
+            os.chmod(KEY_FILE, 0o600)
             return key
     else:
         # First time — generate and save
         key = _generate_key()
         with open(KEY_FILE, "wb") as f:
             f.write(key)
+        os.chmod(KEY_FILE, 0o600)
         return key
+
 
 
 def _get_fernet() -> Fernet:
