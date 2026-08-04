@@ -145,9 +145,16 @@ def safe_decrypt(value: str) -> str:
         return value
     except ImportError:
         return value
+    except ValueError:
+        # Decryption failed — key mismatch or corrupted data
+        import logging
+        logging.getLogger(__name__).error(
+            "Decryption failed — encryption key may have changed. "
+            "API keys will need to be re-entered."
+        )
+        return ""
     except Exception:
-        return value
-
+        return ""
 
 # ==========================================
 # FORMATTING HELPERS
@@ -254,7 +261,7 @@ def is_market_open() -> Dict:
         }
     except Exception as e:
         return {
-            "is_open": True,
+            "is_open": False,
             "error": str(e),
             "current_time_et": "Unknown",
             "market_open_time": "9:30 AM ET / 2:30 PM UK",
@@ -370,10 +377,13 @@ def clean_ticker(symbol: str) -> str:
 # ==========================================
 def init_session_defaults(defaults: dict):
     """Initialize session state with default values if not already set."""
-    for key, value in defaults.items():
-        if key not in st.session_state:
-            st.session_state[key] = value
-
+    try:
+        import streamlit as st
+        for key, value in defaults.items():
+            if key not in st.session_state:
+                st.session_state[key] = value
+    except ImportError:
+        pass
 
 # ==========================================
 # STOCK CLASSIFICATION (lightweight version for utils)
