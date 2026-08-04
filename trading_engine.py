@@ -40,6 +40,16 @@ try:
     ADVANCED_SIGNALS_AVAILABLE = True
 except Exception:
     ADVANCED_SIGNALS_AVAILABLE = False
+try:
+    from utils import US_QUICK_TURNOVER, DIVIDEND_STOCKS, GROWTH_STOCKS, US_MARKET_HOLIDAYS, BUCKET_ICONS, SECTOR_MAP
+except Exception:
+    # Fallback — constants are defined below
+    US_QUICK_TURNOVER = None
+    DIVIDEND_STOCKS = None
+    GROWTH_STOCKS = None
+    US_MARKET_HOLIDAYS = None
+    BUCKET_ICONS = None
+    SECTOR_MAP = None
 
 try:
     from core.metrics import (
@@ -106,122 +116,20 @@ except Exception:
 # ==========================================
 # CONSTANTS
 # ==========================================
-US_QUICK_TURNOVER = [
-    "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA", "AMD", "INTC",
-    "NFLX", "PYPL", "ADBE", "CRM", "ORCL", "IBM", "QCOM", "TXN", "AVGO",
-    "INTU", "SHOP", "SNOW", "PLTR", "COIN", "SQ", "ROKU", "ZM", "CRWD",
-    "DDOG", "NET", "MDB", "OKTA", "ZS", "PANW", "RIVN", "LCID", "NIO",
-    "UBER", "ABNB", "RBLX", "SOFI", "HOOD", "UPST", "AFRM", "OPEN", "F",
-    "GM", "DIS", "BA", "CAT", "GE", "LMT", "NOC", "RTX", "DE", "UNP", "CSX",
-]
-US_LONG_TERM = 365  # days — long-term capital gains threshold
 
-US_MARKET_HOLIDAYS = {
-    "2025-01-01", "2025-01-20", "2025-02-17", "2025-04-18",
-    "2025-05-26", "2025-07-04", "2025-09-01", "2025-11-27",
-    "2025-12-25",
-    "2026-01-01", "2026-01-19", "2026-02-16", "2026-04-03",
-    "2026-05-25", "2026-07-04", "2026-09-07", "2026-11-26",
-    "2026-12-25",
-}
-
-
-DIVIDEND_STOCKS = [
-    "AAPL", "MSFT", "JNJ", "PG", "KO", "PEP", "VZ", "T", "XOM", "CVX",
-    "ABBV", "LLY", "MRK", "PFE", "MO", "HD", "WMT", "COST", "TGT", "V",
-    "UNH", "ABT", "TMO", "AVGO", "TXN", "QCOM", "INTC", "CSCO", "IBM", "ORCL",
-    "LIN", "DHR", "RTX", "HON", "UPS", "BA", "CAT", "DE", "MMM", "SPGI",
-    "MMC", "AON", "CME", "ICE", "BLK", "SCHW", "PGR", "ALL", "BRK.B", "GLW",
-    "O", "OHI", "STAG", "VICI", "MPW", "AGNC", "NLY", "LMT", "NOC", "GD",
-    "RTX", "EMR", "ETN", "GIS", "CL", "KMB", "CLX", "EL", "APD", "ECL",
-    "FIS", "GPN", "MA", "COF", "CB", "CINF", "MET", "AFL", "PRU", "TRV",
-    "AIG", "ALL", "BRO", "CF", "MOS", "NUE", "STLD", "FCX", "F", "GM",
-    "COP", "SLB", "EOG", "OXY", "MPC", "VLO", "PSX", "KMI", "WMB", "ET",
-    "OKE", "D", "DUK", "SO", "NEE", "AEP", "EXC", "XEL", "SRE", "AWK",
-    "WEC", "DTE", "PEG", "ESRX", "CI", "HUM", "CNC", "ELV", "WBA", "RAD",
-]
-
-GROWTH_STOCKS = [
-    "AMZN", "GOOGL", "GOOG", "META", "NVDA", "TSLA", "NFLX", "AMD", "PYPL",
-    "ADBE", "CRM", "SHOP", "SNOW", "PLTR", "COIN", "SQ", "ROKU", "ZM", "CRWD",
-    "DDOG", "NET", "MDB", "OKTA", "ZS", "PANW", "RIVN", "LCID", "NIO", "RBLX",
-    "U", "PATH", "AI", "SOFI", "HOOD", "AFRM", "UPST", "OPEN", "EXAS", "VEEV",
-    "WDAY", "TEAM", "DOCU", "ZI", "BILL", "HUBS", "TWLO", "ESTC", "FSLR",
-    "ENPH", "SEDG", "RUN", "BE", "PLUG", "BLNK", "CHPT", "NKLA", "QS", "RMO",
-    "UBER", "LYFT", "ABNB", "PINS", "SNAP", "SPOT", "MSTR", "SE", "MELI",
-    "WIX", "ETSY", "INTU", "MNST",
-]
-
-BUCKET_ICONS = {
-    "dividend": "🟢",
-    "growth": "🔵",
-    "penny": "🔴",
-    "withdrawal": "🟡",
-    "long_term": "🟢",
-}
-
-SECTOR_MAP = {
-    "AAPL": "Technology", "MSFT": "Technology", "GOOGL": "Technology", "GOOG": "Technology",
-    "META": "Technology", "NVDA": "Technology", "AMD": "Technology", "INTC": "Technology",
-    "CSCO": "Technology", "ORCL": "Technology", "IBM": "Technology", "QCOM": "Technology",
-    "TXN": "Technology", "AVGO": "Technology", "ADBE": "Technology", "CRM": "Technology",
-    "NFLX": "Technology", "PYPL": "Technology", "SNOW": "Technology", "PLTR": "Technology",
-    "NET": "Technology", "MDB": "Technology", "OKTA": "Technology", "ZS": "Technology",
-    "CRWD": "Technology", "DDOG": "Technology", "SHOP": "Technology", "U": "Technology",
-    "PATH": "Technology", "AI": "Technology", "FSLR": "Technology", "ENPH": "Technology",
-    "SEDG": "Technology", "RUN": "Technology", "PLUG": "Technology", "BE": "Technology",
-    "COIN": "Technology", "SQ": "Technology", "ROKU": "Technology", "ZM": "Technology",
-    "PINS": "Technology", "SNAP": "Technology", "SPOT": "Technology", "ABNB": "Consumer Discretionary",
-    "UBER": "Technology", "LYFT": "Technology", "HOOD": "Financials", "SOFI": "Financials",
-    "AFRM": "Financials", "UPST": "Financials", "DOCU": "Technology", "HUBS": "Technology",
-    "TWLO": "Technology", "ESTC": "Technology", "BILL": "Technology", "ZI": "Technology",
-    "WDAY": "Technology", "TEAM": "Technology", "VEEV": "Healthcare", "MSTR": "Technology",
-    "JNJ": "Healthcare", "UNH": "Healthcare", "ABBV": "Healthcare", "LLY": "Healthcare",
-    "MRK": "Healthcare", "PFE": "Healthcare", "TMO": "Healthcare", "ABT": "Healthcare",
-    "MRNA": "Healthcare", "EXAS": "Healthcare", "BIIB": "Healthcare", "GILD": "Healthcare",
-    "AMGN": "Healthcare", "REGN": "Healthcare", "VRTX": "Healthcare", "ISRG": "Healthcare",
-    "IDXX": "Healthcare", "ILMN": "Healthcare", "ALGN": "Healthcare", "DXCM": "Healthcare",
-    "CI": "Healthcare", "HUM": "Healthcare", "CNC": "Healthcare", "ELV": "Healthcare",
-    "ESRX": "Healthcare", "VTRS": "Healthcare", "BMY": "Healthcare", "CVS": "Healthcare",
-    "WBA": "Healthcare", "V": "Financials", "MA": "Financials", "JPM": "Financials",
-    "BAC": "Financials", "WFC": "Financials", "GS": "Financials", "MS": "Financials",
-    "C": "Financials", "BLK": "Financials", "SCHW": "Financials", "COF": "Financials",
-    "CB": "Financials", "CINF": "Financials", "MET": "Financials", "AFL": "Financials",
-    "PRU": "Financials", "TRV": "Financials", "AIG": "Financials", "ALL": "Financials",
-    "AON": "Financials", "MMC": "Financials", "ICE": "Financials", "CME": "Financials",
-    "FIS": "Financials", "GPN": "Financials", "BRO": "Financials", "PG": "Consumer Staples",
-    "KO": "Consumer Staples", "PEP": "Consumer Staples", "WMT": "Consumer Staples",
-    "COST": "Consumer Staples", "TGT": "Consumer Staples", "CL": "Consumer Staples",
-    "KMB": "Consumer Staples", "CLX": "Consumer Staples", "EL": "Consumer Staples",
-    "GIS": "Consumer Staples", "MO": "Consumer Staples", "MDLZ": "Consumer Staples",
-    "HSY": "Consumer Staples", "AMZN": "Consumer Discretionary", "TSLA": "Consumer Discretionary",
-    "HD": "Consumer Discretionary", "NKE": "Consumer Discretionary", "SBUX": "Consumer Discretionary",
-    "LOW": "Consumer Discretionary", "BKNG": "Consumer Discretionary", "RIVN": "Consumer Discretionary",
-    "LCID": "Consumer Discretionary", "F": "Consumer Discretionary", "GM": "Consumer Discretionary",
-    "RBLX": "Consumer Discretionary", "ETSY": "Consumer Discretionary",
-    "XOM": "Energy", "CVX": "Energy", "COP": "Energy", "SLB": "Energy", "EOG": "Energy",
-    "OXY": "Energy", "MPC": "Energy", "VLO": "Energy", "PSX": "Energy", "KMI": "Energy",
-    "FANG": "Energy", "HAL": "Energy", "BKR": "Energy", "DVN": "Energy", "MRO": "Energy",
-    "WES": "Energy", "ET": "Energy", "OKE": "Energy", "WMB": "Energy",
-    "BA": "Industrials", "CAT": "Industrials", "DE": "Industrials", "MMM": "Industrials",
-    "GE": "Industrials", "HON": "Industrials", "LMT": "Industrials", "NOC": "Industrials",
-    "GD": "Industrials", "RTX": "Industrials", "UNP": "Industrials", "CSX": "Industrials",
-    "NSC": "Industrials", "EMR": "Industrials", "ETN": "Industrials", "FTV": "Industrials",
-    "PH": "Industrials", "IR": "Industrials", "DOV": "Industrials", "ITW": "Industrials",
-    "LIN": "Materials", "APD": "Materials", "ECL": "Materials", "SHW": "Materials",
-    "FCX": "Materials", "NUE": "Materials", "STLD": "Materials", "CF": "Materials",
-    "MOS": "Materials", "DD": "Materials", "NEE": "Utilities", "DUK": "Utilities",
-    "SO": "Utilities", "D": "Utilities", "AEP": "Utilities", "EXC": "Utilities",
-    "XEL": "Utilities", "SRE": "Utilities", "AWK": "Utilities", "WEC": "Utilities",
-    "DTE": "Utilities", "PEG": "Utilities", "ES": "Utilities",
-    "O": "Real Estate", "OHI": "Real Estate", "STAG": "Real Estate", "VICI": "Real Estate",
-    "MPW": "Real Estate", "AMT": "Real Estate", "PLD": "Real Estate", "CCI": "Real Estate",
-    "EQIX": "Real Estate", "DLR": "Real Estate", "PSA": "Real Estate", "WELL": "Real Estate",
-    "VTR": "Real Estate", "UDR": "Real Estate",
-    "DIS": "Communication Services", "VZ": "Communication Services", "T": "Communication Services",
-    "CMCSA": "Communication Services", "TMUS": "Communication Services", "EA": "Communication Services",
-    "TTWO": "Communication Services",
-}
+# Fallback defaults if utils import fails
+if US_QUICK_TURNOVER is None:
+    US_QUICK_TURNOVER = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META"]
+if DIVIDEND_STOCKS is None:
+    DIVIDEND_STOCKS = ["JNJ", "PG", "KO", "PEP", "VZ", "T", "XOM", "CVX", "ABBV", "MRK"]
+if GROWTH_STOCKS is None:
+    GROWTH_STOCKS = ["AMZN", "GOOGL", "META", "TSLA", "NVDA", "NFLX"]
+if BUCKET_ICONS is None:
+    BUCKET_ICONS = {"dividend": "🟢", "growth": "🔵", "penny": "🔴", "withdrawal": "🟡", "long_term": "🟢"}
+if SECTOR_MAP is None:
+    SECTOR_MAP = {"AAPL": "Technology", "MSFT": "Technology"}
+if US_MARKET_HOLIDAYS is None:
+    US_MARKET_HOLIDAYS = set()
 
 # VIX cache is now per-engine instance (moved to __init__)
 
@@ -461,7 +369,7 @@ class TradingEngine:
                 self._update_buckets()
                 if AUDIT_AVAILABLE and self.username:
                     try:
-                        log_audit(self.username, "engine_connect", "Connected to Alpaca")
+                        log_audit(self.username, "engine_connect", "trading", details="Connected to Alpaca")
                     except Exception:
                         pass
                 return True
@@ -490,7 +398,7 @@ class TradingEngine:
         self.status_message = "Bot running"
         if AUDIT_AVAILABLE and self.username:
             try:
-                log_audit(self.username, "bot_start", "Trading bot started")
+                log_audit(self.username, "bot_start", "trading", details="Trading bot started")
             except Exception:
                 pass
 
@@ -502,7 +410,7 @@ class TradingEngine:
         self._save_trade_log()
         if AUDIT_AVAILABLE and self.username:
             try:
-                log_audit(self.username, "bot_stop", "Trading bot stopped")
+                log_audit(self.username, "bot_stop", "trading", details="Trading bot stopped")
             except Exception:
                 pass
 
@@ -1694,7 +1602,9 @@ class TradingEngine:
                 # ATR position sizing
                 if self.settings.get("use_atr_position_sizing", True):
                     try:
-                        ticker_data = yf.Ticker(symbol).history(period="3mo")
+                        ticker_data = self._data_cache.get(symbol)
+                        if ticker_data is None or ticker_data.empty or len(ticker_data) < 14:
+                            ticker_data = yf.Ticker(symbol).history(period="3mo")
                         if not ticker_data.empty and TA_AVAILABLE and len(ticker_data) >= 14:
                             atr_series = ta.volatility.AverageTrueRange(
                                 ticker_data['High'], ticker_data['Low'], ticker_data['Close'],
@@ -1971,7 +1881,6 @@ class TradingEngine:
         """Run one complete trading cycle with detailed logging."""
         try:
             self.cycle_count += 1
-            self.consecutive_failures = 0  # Reset on successful cycle start
             self.status_message = f"Running cycle {self.cycle_count}..."
 
             # Check and reset daily counters
@@ -2728,7 +2637,7 @@ class TradingEngine:
                             try:
                                 hist = ticker.history(period="5y")
                                 if not hist.empty and 'Dividends' in hist.columns:
-                                    annual_divs = hist['Dividends'][hist['Dividends'] > 0].resample('Y').sum()
+                                    annual_divs = hist['Dividends'][hist['Dividends'] > 0].resample('YE').sum()
                                     if len(annual_divs) >= 2:
                                         first_div = annual_divs.iloc[0]
                                         last_div = annual_divs.iloc[-1]
@@ -3118,7 +3027,6 @@ class TradingEngine:
             }
 
             # Avoid duplicate snapshots on same date (but allow multiple per day for manual snapshots)
-            existing_dates = [s.get("date", "")[:10] for s in self.equity_snapshots[-5:]]
             # Only skip if we already have a snapshot from the same hour
             current_hour = datetime.utcnow().strftime("%Y-%m-%d %H")
             recent_hours = [s.get("date", "")[:13] for s in self.equity_snapshots[-5:]]
@@ -4182,7 +4090,7 @@ class TradingEngine:
         print(f"[{error_type}] {symbol}: {error_msg}")
         if AUDIT_AVAILABLE and self.username:
             try:
-                log_audit(self.username, f"error_{error_type}", f"{symbol}: {error_msg}")
+                log_audit(self.username, "error", category=error_type, symbol=symbol, details={"message": error_msg})
             except Exception:
                 pass
 
@@ -4234,7 +4142,10 @@ class TradingEngine:
             try:
                 for symbol in watchlist:
                     try:
-                        signal_result = generate_all_signals(symbol)
+                        df = self._batch_fetch_data([symbol]).get(symbol)
+                        if df is None or df.empty or len(df) < 50:
+                            continue
+                        signal_result = generate_all_signals(df, symbol=symbol, params=self.settings)
                         if signal_result and isinstance(signal_result, dict):
                             combined_score = calculate_combined_score(signal_result)
                             bucket = self.classify_stock(symbol)
